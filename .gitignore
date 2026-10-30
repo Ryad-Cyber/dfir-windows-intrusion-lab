@@ -1,0 +1,16 @@
+# Preuves et copies de travail - jamais versionnees (taille, droits de diffusion)
+evidence/
+work/
+
+# Fichiers d'images disque et de captures memoire, au cas ou places ailleurs
+*.E01
+*.dd
+*.raw
+*.mem
+*.vmem
+*.img
+
+# Divers
+.DS_Store
+Thumbs.db
+*.log

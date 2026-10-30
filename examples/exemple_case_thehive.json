@@ -1,0 +1,30 @@
+{
+  "_comment": "EXEMPLE - structure illustrative avec donnees fictives. Ne reflete pas un cas reel ni des observables reellement identifies.",
+  "title": "[EXEMPLE] Vol suspecte de document sensible - poste Windows",
+  "description": "Cas d'illustration du format attendu pour la documentation de l'investigation DFIR Windows Intrusion Lab dans TheHive. A remplacer par le cas reel une fois l'investigation menee.",
+  "severity": 2,
+  "tlp": 2,
+  "pap": 2,
+  "tags": ["dfir", "windows", "exemple"],
+  "tasks": [
+    { "title": "Verifier l'integrite des preuves (hash)", "status": "Waiting" },
+    { "title": "Analyse disque - Autopsy", "status": "Waiting" },
+    { "title": "Analyse memoire - Volatility 3", "status": "Waiting" },
+    { "title": "Recoupement et chronologie", "status": "Waiting" },
+    { "title": "Redaction du rapport final", "status": "Waiting" }
+  ],
+  "observables": [
+    {
+      "dataType": "filename",
+      "data": "exemple_fichier_suspect.exe",
+      "message": "EXEMPLE - nom de fichier fictif illustrant le format attendu",
+      "ioc": true
+    },
+    {
+      "dataType": "ip",
+      "data": "203.0.113.10",
+      "message": "EXEMPLE - adresse IP de documentation (RFC 5737), non reelle",
+      "ioc": true
+    }
+  ]
+}

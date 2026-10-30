@@ -1,0 +1,6 @@
+type,valeur,source,confiance,description
+# EXEMPLE - donnees fictives, format illustratif uniquement
+processus,fakeupdate.exe,volatility:pslist,moyenne,Processus au nom evocateur d un faux installeur observe en memoire (exemple)
+hash_sha256,0000000000000000000000000000000000000000000000000000000000ab,autopsy:hash,moyenne,Hash fictif d un fichier suspect retrouve sur disque (exemple)
+cle_registre,HKCU\Software\Microsoft\Windows\CurrentVersion\Run\FakeEntry,volatility:registry.printkey,faible,Entree de persistance fictive a titre d exemple
+adresse_ip,203.0.113.10,volatility:netscan,faible,Adresse IP de documentation (bloc TEST-NET-3 RFC 5737) utilisee comme exemple
