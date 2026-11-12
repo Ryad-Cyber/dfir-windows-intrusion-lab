@@ -1,122 +1,94 @@
-# DFIR Windows Intrusion Lab
+# SOC Detection & Digital Forensics Investigation — Windows Incident Response Lab
 
-Investigation forensic préparée sur un poste de travail **Windows** compromis, combinant l'analyse d'image disque (**Autopsy**), l'analyse de capture mémoire (**Volatility 3**) et le suivi d'incident (**TheHive**).
+Laboratoire personnel combinant détection SOC, collecte d'artefacts Windows et investigation numérique. Une activité PowerShell **bénigne, simulée et contrôlée** a été générée dans une machine virtuelle, puis étudiée de la télémétrie Sysmon jusqu'à la corrélation des traces et à l'analyse mémoire. L'installation de TheHive prépare la gestion de l'incident ; le cas reste à créer après activation de la licence.
 
-> **État d'avancement : préparation terminée, investigation à réaliser.**
-> Ce dépôt contient le scénario, l'environnement, la méthodologie et les gabarits de documentation. Aucune analyse n'a encore été menée : les constats, la chronologie, les indicateurs de compromission et les recommandations réelles seront ajoutés à ce README au fur et à mesure de l'investigation.
+Il ne s'agit ni d'une compromission réelle, ni d'une infection par malware, ni d'une attaque réussie. Ce projet est distinct du [laboratoire SOC Elastic Security et Active Directory](https://github.com/Ryad-Cyber/elastic-security-soc-lab).
 
-## Sommaire
+## Objectifs et architecture
 
-- [Contexte](#contexte)
-- [Objectifs](#objectifs)
-- [Jeu de données](#jeu-de-données)
-- [Environnement et outils](#environnement-et-outils)
-- [Méthodologie prévue](#méthodologie-prévue)
-- [Structure du dépôt](#structure-du-dépôt)
-- [Livrables attendus](#livrables-attendus)
-- [État d'avancement](#état-davancement-1)
-- [Limites et cadre d'utilisation](#limites-et-cadre-dutilisation)
+- Transformer une création de processus Windows en alerte exploitable dans Elastic Security et la contextualiser avec MITRE ATT&CK.
+- Collecter des artefacts et comparer les observations Sysmon et Prefetch, sans confondre corrélation temporelle et preuve de causalité.
+- Examiner le registre, des données collectées et une image mémoire ; préparer la documentation d'incident dans TheHive.
 
-## Contexte
+```text
+Windows 11 « RYAD » — VM VMware, 192.168.194.138
+  Activité PowerShell contrôlée → Sysmon → Elastic Security / Kibana → alerte SOC
+  Artefacts → KAPE / FTK Imager → PECmd, RECmd et Autopsy
+  Mémoire → DumpIt → Volatility 3
+                      ↓
+       Comparaison manuelle des observations
+                      ↓
+Ubuntu 22.04 — VM VMware, 192.168.194.134
+  TheHive 6 installé : organisation créée ; dossier d'incident à finaliser
+```
 
-Ce projet personnel a pour but de pratiquer une investigation numérique complète — de la collecte des indices à la documentation de l'incident — sur un cas d'intrusion visant un poste de travail Windows. Il s'inscrit dans une démarche de montée en compétences en forensic numérique et réponse à incident (DFIR), en complément de mes projets de détection SOC ([Lab SOC Elastic Security](https://github.com/Ryad-Cyber/elastic-security-soc-lab), [Lab Wazuh](https://github.com/Ryad-Cyber/wazuh-siem-detection-lab)) et de pentest.
+Le schéma décrit des étapes de travail, **pas une intégration automatique avec TheHive**. L'hébergement exact de la pile Elastic de détection n'est pas déduit du schéma.
 
-## Objectifs
+## Outils et rôles
 
-- Analyser une image disque Windows avec **Autopsy** : système de fichiers, artefacts utilisateur, journaux d'événements, persistance.
-- Analyser une capture mémoire correspondante avec **Volatility 3** : processus, connexions réseau, injections de code, artefacts en mémoire absents du disque.
-- Recouper les constats des deux analyses pour construire une **chronologie unique** de l'intrusion.
-- Identifier des **indicateurs de compromission (IOC)** exploitables (processus, fichiers, clés de registre, connexions réseau).
-- Centraliser et documenter l'incident dans **TheHive**, sous forme de cas structuré avec tâches et observables.
-- Produire des **recommandations de remédiation et de détection** réalistes, directement liées aux constats.
+| Outil | Rôle dans le laboratoire |
+|---|---|
+| PowerShell, Sysmon | Activité contrôlée et télémétrie Windows, notamment création de processus (Event ID 1). |
+| Elastic Security, Elasticsearch, Kibana | Recherche dans la télémétrie et détection à l'aide d'une règle personnalisée. |
+| MITRE ATT&CK | Contextualisation T1059.001 — PowerShell. |
+| KAPE | Collecte ciblée d'artefacts Windows. |
+| PECmd, RECmd | Lecture des artefacts Prefetch et du registre, notamment `NTUSER.DAT`. |
+| FTK Imager, Autopsy | Acquisition logique ; création du dossier d'investigation et importation des données. |
+| DumpIt, Volatility 3 | Acquisition de mémoire et analyse avec `windows.info` et `windows.pstree`. |
+| TheHive 6.0.0, Java 17, Cassandra 4.1.x, Elasticsearch 8.x | Installation native et préparation de l'organisation de gestion d'incident sur Ubuntu. |
 
-## Jeu de données
+## Scénario et détection
 
-L'investigation s'appuiera sur **Stolen Szechuan Sauce**, un cas d'entraînement DFIR public créé par 13Cubed, largement utilisé dans la communauté forensic et diffusé à des fins pédagogiques. Le scénario met en scène le vol d'une recette d'entreprise (« la sauce ») depuis le poste de travail d'un employé, et fournit :
+Une commande PowerShell bénigne utilisant `-EncodedCommand` est exécutée dans le laboratoire. Un événement **Sysmon Event ID 1 — Process Create** pour `powershell.exe` porte l'horodatage `2026-11-11 11:28:46.231 UTC`. La télémétrie est recherchée dans Elastic : la règle personnalisée **Suspicious PowerShell Encoded Command** produit une alerte de sévérité **High**, avec un **risk score de 73**, contextualisée par **MITRE ATT&CK T1059.001 — PowerShell**. La règle et sa requête complète ne sont pas exportées dans ce dépôt.
 
-- une image disque du poste de travail Windows concerné ;
-- une capture mémoire (RAM) correspondante.
+La capture de recherche montre un événement et une alerte associée : l'heure de création de l'alerte ne doit pas être assimilée à la milliseconde de l'événement source.
 
-Ce jeu de données a été choisi car il réunit, pour un **même incident**, une image disque et une capture mémoire cohérentes entre elles — condition nécessaire pour recouper réellement les deux analyses et construire une chronologie unique, plutôt que de combiner artificiellement deux cas sans rapport.
+## Collecte et investigation
 
-**Alternative de repli** si ce jeu de données venait à ne plus être accessible : les images disque publiques du projet **NIST CFReDS** (Computer Forensic Reference Data Sets, domaine public) pour la partie Autopsy, associées à un échantillon mémoire public du dépôt **Volatility Foundation** (`samples`, utilisés pour les tests officiels de l'outil) pour la partie Volatility. Cette alternative est documentée dans [`docs/scenario.md`](docs/scenario.md) au cas où elle serait nécessaire ; dans ce cas, la chronologie recoupera deux sources distinctes et ce README le précisera explicitement.
+1. **KAPE** : collecte ciblée de fichiers utiles à l'investigation, avec **789 fichiers copiés et 78 dédupliqués**. Ces quantités décrivent la collecte, pas une compromission.
+2. **Prefetch / PECmd** : l'extrait associé à `POWERSHELL.EXE` indique **14 exécutions** et une dernière exécution à `2026-11-11 11:28:46 UTC`. Cette seconde concorde avec l'événement Sysmon de `11:28:46.231 UTC`. La capture est un extrait recadré ; le nom du fichier et son fuseau n'y sont pas visibles, et leur contexte est fourni par l'auteur. Cette concordance ne qualifie pas les 14 exécutions de malveillantes et n'identifie pas à elle seule chaque action.
+3. **Registre / RECmd** : une **sous-clé** créée pour l'exercice, `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run\SOC-DFIR-Lab`, contient une valeur par défaut `C:\Windows\System32\notepad.exe`. Sa dernière modification relevée est `2026-11-11 11:35:12.1764899`, sans fuseau confirmé. La création de cet artefact ne démontre pas une persistance fonctionnelle.
+4. **Fichier de simulation** : `C:\Users\Analyst\Desktop\suspicious_note.txt` est un artefact bénin du laboratoire.
+5. **FTK Imager / Autopsy** : acquisition logique et importation des données dans un dossier d'investigation. Une recherche par mots-clés a rencontré un problème ; aucun résultat de cette recherche n'est revendiqué.
+6. **Mémoire** : DumpIt a servi à l'acquisition ; Volatility 3 a été utilisé avec `windows.info` et `windows.pstree`. Un processus PowerShell **PID 10172**, créé à `2026-11-11 13:40:49 UTC`, a été observé. Il est postérieur à l'événement initial et n'est pas identifié comme son processus.
 
-Aucune image disque ni capture mémoire n'est incluse dans ce dépôt (taille, droits de diffusion) : voir [`docs/prerequisites.md`](docs/prerequisites.md) pour se les procurer.
+## Chronologie des observations
 
-## Environnement et outils
-
-| Outil | Rôle | Version prévue |
+| Horodatage | Observation | Portée |
 |---|---|---|
-| [Autopsy](https://www.autopsy.com/) | Analyse de l'image disque : système de fichiers, artefacts, timeline | 4.21+ |
-| [Volatility 3](https://github.com/volatilityfoundation/volatility3) | Analyse de la capture mémoire : processus, réseau, injections | 2.x |
-| [TheHive](https://thehive-project.org/) | Gestion de cas, centralisation des observables et des tâches | 5.x (Community) |
+| 11 novembre 2026, 11:28:46.231 UTC | Création de processus PowerShell, Sysmon Event ID 1. | Activité simulée ensuite détectée par Elastic. |
+| 11 novembre 2026, 11:28:46 UTC | Dernière exécution PowerShell relevée dans l'extrait Prefetch. | Concordance à la seconde avec Sysmon, sans identification causale définitive. |
+| 11 novembre 2026, 11:35:12.1764899 | Dernière modification de la sous-clé `SOC-DFIR-Lab`. | Fuseau non confirmé ; artefact créé pour l'exercice. |
+| 11 novembre 2026, 13:40:49 UTC | Création du PowerShell PID 10172 observé en mémoire. | Processus ultérieur, distinct de l'événement initial. |
 
-Matériel utilisé : poste personnel (Intel i7-1255U, 16 Go de RAM), suffisant pour l'analyse statique d'une image disque et d'une capture mémoire de cette taille sans virtualisation lourde. Aucune machine virtuelle compromise n'est exécutée : seules des copies statiques (image disque, dump mémoire) sont analysées, dans un répertoire de travail dédié et hors de tout réseau de production.
+## TheHive : état réel
 
-Détails d'installation et prérequis complets : [`docs/prerequisites.md`](docs/prerequisites.md).
+Après une première tentative Docker, **TheHive 6.0.0** a été installé nativement sur Ubuntu 22.04 avec Java 17, Cassandra 4.1.x et Elasticsearch 8.x ; l'interface web a été ouverte. L'organisation **SOC-DFIR-Lab** est créée et active, avec la description « SOC investigation and digital forensics lab: Elastic Security, Sysmon, KAPE, Volatility and TheHive. » et les règles `manual` pour tâches et observables. Le compte **SOC Analyst** a été créé avec le profil `read-only`.
 
-## Méthodologie prévue
+La demande de licence TheHive Community est **en attente de validation**. Aucun dossier d'incident n'a encore été créé. Le dossier envisagé, **SOC-DFIR-001 — Suspicious PowerShell Encoded Command**, reste à finaliser après activation ; son existence, des tâches ou des observables enregistrés ne sont pas revendiqués.
 
-Déroulé prévu de l'investigation, détaillé dans [`docs/methodologie.md`](docs/methodologie.md) :
+## Captures commentées
 
-1. **Préparation** — vérification des empreintes (hash) de l'image disque et de la capture mémoire, mise en place d'un répertoire de travail en lecture seule sur les preuves.
-2. **Analyse disque (Autopsy)** — ingestion de l'image, revue des artefacts utilisateur (historique, téléchargements, documents récents), des journaux d'événements Windows, des clés de persistance (Run/RunOnce, tâches planifiées, services) et des horodatages du système de fichiers (MACB).
-3. **Analyse mémoire (Volatility 3)** — identification du profil système, liste des processus (`pslist`, `pstree`), connexions réseau (`netscan`), recherche d'injections de code (`malfind`), extraction des lignes de commande (`cmdline`), revue des DLL chargées et des fichiers ouverts au moment de la capture.
-4. **Recoupement et chronologie** — mise en correspondance des constats disque et mémoire (un processus suspect en mémoire retrouvé sur disque, un fichier créé au moment d'une connexion réseau suspecte, etc.) dans une chronologie unique.
-5. **Indicateurs de compromission** — consolidation des IOC identifiés (nom de processus, hash de fichier, chemin, clé de registre, IP/domaine) dans un tableau exploitable.
-6. **Documentation dans TheHive** — création du cas, ajout des observables, suivi des tâches d'investigation, journal des actions menées.
-7. **Conclusions et remédiation** — rédaction des constats, de la chronologie finale et de recommandations de remédiation et de détection directement liées aux constats observés (pas de recommandations génériques).
+Les captures documentent l'environnement et les observations ; l'extrait Prefetch est volontairement conservé à sa résolution d'origine.
 
-Chaque étape produira des notes et, le cas échéant, des captures d'écran réellement obtenues, qui remplaceront progressivement les sections encore vides de ce README.
+1. **Installation Sysmon** — service démarré et journal opérationnel disponible. ![Installation Sysmon et état du service](screenshots/01_Sysmon_Installation.png)
+2. **Intégration Windows** — politique d'agent Elastic et intégration Windows. ![Politique et intégration Windows dans Elastic Fleet](screenshots/02_Windows_Sysmon_Integration.png)
+3. **Télémétrie Sysmon** — recherche de créations de processus Event ID 1 dans Elastic. ![Recherche de créations de processus Sysmon dans Elastic](screenshots/03_Sysmon_Process_Detection.png)
+4. **Détection** — alerte et événement PowerShell dans Elastic. ![Alerte PowerShell encodée et événement source](screenshots/04_Encoded_PowerShell_Alert.png)
+5. **KAPE** — résultat de la collecte ciblée et déduplication. ![Collecte d'artefacts par KAPE](screenshots/05_KAPE_Forensic_Collection.png)
+6. **Prefetch** — extrait PECmd : nombre et dernière heure d'exécution rapportés pour PowerShell ; le nom du fichier n'est pas visible dans cet extrait. ![Extrait du nombre et de la dernière heure d'exécution Prefetch](screenshots/06_PowerShell_Prefetch_Analysis.png)
+7. **Registre** — sous-clé créée pour le lab et valeur par défaut. ![Sous-clé du registre examinée avec RECmd](screenshots/07_Registry_Persistence_Forensics.png)
+8. **FTK Imager** — visualisation des données collectées et de `NTUSER.DAT`. ![Données logiques examinées dans FTK Imager](screenshots/08_FTK_Logical_Evidence.png)
+9. **Mémoire** — extrait Volatility montrant le processus PowerShell ultérieur. ![Processus PowerShell observé avec Volatility](screenshots/09_Volatility_Memory_Analysis.png)
+10. **TheHive** — création de l'organisation active. ![Organisation SOC-DFIR-Lab dans TheHive](screenshots/10_TheHive_SOC_DFIR_Organization.png)
 
-## Structure du dépôt
+## Limites et recommandations
 
-```
-dfir-windows-intrusion-lab/
-├── README.md                          Ce fichier
-├── LICENSE
-├── .gitignore                         Exclut les preuves (images disque, dumps mémoire, exports TheHive)
-├── docs/
-│   ├── scenario.md                    Scénario détaillé et jeu de données
-│   ├── prerequisites.md               Installation des outils, obtention des preuves, vérification des hash
-│   └── methodologie.md                Méthodologie détaillée, étape par étape, avec commandes de référence
-├── templates/
-│   ├── rapport_incident_template.md   Gabarit de rapport d'incident à remplir
-│   ├── chronologie_template.csv       Gabarit de chronologie (timeline)
-│   └── ioc_template.csv               Gabarit de suivi des indicateurs de compromission
-├── scripts/
-│   ├── volatility_quickstart.ps1      Enchaîne les plugins Volatility 3 de base et range les sorties
-│   └── autopsy_ingest_checklist.md    Checklist des modules d'ingestion et artefacts à vérifier dans Autopsy
-└── examples/
-    ├── exemple_ioc.csv                Exemple de tableau d'IOC avec données fictives
-    └── exemple_case_thehive.json      Exemple de structure de cas TheHive avec données fictives
-```
+- Les captures et constats concernent une simulation isolée. Aucune compromission, persistance effective ou activité malveillante réelle n'est déduite de ces observations.
+- Les horodatages de l'extrait Prefetch reposent sur le contexte communiqué ; le fuseau du registre reste à confirmer. Le PID mémoire ultérieur ne prouve pas la présence du processus initial lors de la capture.
+- Le dépôt ne contient ni dump mémoire, ni données collectées, ni export complet de règle, ni hash d'intégrité ou chaîne de conservation documentée. La recherche par mots-clés Autopsy n'a pas abouti.
+- Pour poursuivre : valider le contexte et les fuseaux des artefacts, documenter les méthodes de vérification d'intégrité lors des prochaines acquisitions, affiner les critères de détection et traiter les faux positifs. Après validation de la licence TheHive, créer le cas prévu et documenter manuellement les tâches et observables effectivement retenus.
 
-Les fichiers des dossiers `templates/` et `examples/` contiennent des **données fictives**, clairement indiquées comme telles, destinées à illustrer le format attendu avant que l'investigation ne produise des données réelles.
+## Auteur
 
-## Livrables attendus
-
-À l'issue de l'investigation, ce dépôt contiendra :
-
-- une chronologie consolidée de l'intrusion (disque + mémoire) ;
-- un tableau d'indicateurs de compromission réels ;
-- des captures d'écran commentées des analyses Autopsy et Volatility réellement réalisées ;
-- un export ou une description du cas TheHive documenté ;
-- un rapport d'incident complet avec recommandations de remédiation.
-
-## État d'avancement
-
-- [x] Choix du scénario et du jeu de données
-- [x] Définition de la méthodologie et des outils
-- [x] Préparation des gabarits de documentation (rapport, chronologie, IOC)
-- [x] Script d'aide à l'exécution des plugins Volatility
-- [ ] Obtention et vérification des preuves (image disque, capture mémoire)
-- [ ] Analyse disque avec Autopsy
-- [ ] Analyse mémoire avec Volatility 3
-- [ ] Recoupement et chronologie
-- [ ] Documentation du cas dans TheHive
-- [ ] Rapport final et recommandations
-
-## Limites et cadre d'utilisation
-
-Ce projet est un exercice personnel de démonstration de compétences en DFIR, basé sur un jeu de données public conçu pour l'entraînement forensic. Il ne constitue ni une preuve légale ni un rapport d'expertise judiciaire. La méthodologie suit les grands principes d'une investigation réelle (préservation des preuves, documentation, recoupement des sources) mais est appliquée ici hors de toute chaîne de custody formelle.
+Ryad Boujenan — [Portfolio](https://ryad-cyber.github.io/#p-dfir-windows) · [GitHub](https://github.com/Ryad-Cyber)
