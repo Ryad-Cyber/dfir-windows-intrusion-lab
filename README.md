@@ -1,6 +1,6 @@
 # SOC Detection & Digital Forensics Investigation — Windows Incident Response Lab
 
-Laboratoire personnel combinant détection SOC, collecte d'artefacts Windows et investigation numérique. Une activité PowerShell **bénigne, simulée et contrôlée** a été générée dans une machine virtuelle, puis étudiée de la télémétrie Sysmon jusqu'à la corrélation des traces et à l'analyse mémoire. L'installation de TheHive prépare la gestion de l'incident ; le cas reste à créer après activation de la licence.
+Laboratoire personnel combinant détection SOC, collecte d'artefacts Windows et investigation numérique. Une activité PowerShell **bénigne, simulée et contrôlée** a été générée dans une machine virtuelle, puis étudiée de la télémétrie Sysmon jusqu'à la corrélation des traces et à l'analyse mémoire. Le dossier d'incident a ensuite été créé, documenté et clôturé manuellement dans TheHive.
 
 Il ne s'agit ni d'une compromission réelle, ni d'une infection par malware, ni d'une attaque réussie. Ce projet est distinct du [laboratoire SOC Elastic Security et Active Directory](https://github.com/Ryad-Cyber/elastic-security-soc-lab).
 
@@ -8,7 +8,7 @@ Il ne s'agit ni d'une compromission réelle, ni d'une infection par malware, ni 
 
 - Transformer une création de processus Windows en alerte exploitable dans Elastic Security et la contextualiser avec MITRE ATT&CK.
 - Collecter des artefacts et comparer les observations Sysmon et Prefetch, sans confondre corrélation temporelle et preuve de causalité.
-- Examiner le registre, des données collectées et une image mémoire ; préparer la documentation d'incident dans TheHive.
+- Examiner le registre, des données collectées et une image mémoire ; documenter et clôturer manuellement l'incident dans TheHive.
 
 ```text
 Windows 11 « RYAD » — VM VMware, 192.168.194.138
@@ -19,7 +19,7 @@ Windows 11 « RYAD » — VM VMware, 192.168.194.138
        Comparaison manuelle des observations
                       ↓
 Ubuntu 22.04 — VM VMware, 192.168.194.134
-  TheHive 6 installé : organisation créée ; dossier d'incident à finaliser
+  TheHive 6 : dossier créé, documenté et clôturé manuellement
 ```
 
 Le schéma décrit des étapes de travail, **pas une intégration automatique avec TheHive**. L'hébergement exact de la pile Elastic de détection n'est pas déduit du schéma.
@@ -35,7 +35,7 @@ Le schéma décrit des étapes de travail, **pas une intégration automatique av
 | PECmd, RECmd | Lecture des artefacts Prefetch et du registre, notamment `NTUSER.DAT`. |
 | FTK Imager, Autopsy | Acquisition logique ; création du dossier d'investigation et importation des données. |
 | DumpIt, Volatility 3 | Acquisition de mémoire et analyse avec `windows.info` et `windows.pstree`. |
-| TheHive 6.0.0, Java 17, Cassandra 4.1.x, Elasticsearch 8.x | Installation native et préparation de l'organisation de gestion d'incident sur Ubuntu. |
+| TheHive 6.0.0 | Gestion et documentation manuelles du dossier d'incident sur Ubuntu. |
 
 ## Scénario et détection
 
@@ -61,11 +61,13 @@ La capture de recherche montre un événement et une alerte associée : l'heure 
 | 11 novembre 2026, 11:35:12.1764899 | Dernière modification de la sous-clé `SOC-DFIR-Lab`. | Fuseau non confirmé ; artefact créé pour l'exercice. |
 | 11 novembre 2026, 13:40:49 UTC | Création du PowerShell PID 10172 observé en mémoire. | Processus ultérieur, distinct de l'événement initial. |
 
-## TheHive : état réel
+## TheHive : gestion et clôture de l'incident
 
-Après une première tentative Docker, **TheHive 6.0.0** a été installé nativement sur Ubuntu 22.04 avec Java 17, Cassandra 4.1.x et Elasticsearch 8.x ; l'interface web a été ouverte. L'organisation **SOC-DFIR-Lab** est créée et active, avec la description « SOC investigation and digital forensics lab: Elastic Security, Sysmon, KAPE, Volatility and TheHive. » et les règles `manual` pour tâches et observables. Le compte **SOC Analyst** a été créé avec le profil `read-only`.
+TheHive 6.0.0 est utilisé sur Ubuntu 22.04 avec une licence Community activée. L'organisation **SOC-DFIR-Lab** et le compte **SOC Analyst**, doté du profil `org-admin` dans l'organisation, ont servi à créer et documenter manuellement le **case #1 — Suspicious PowerShell Encoded Command**. La méthode d'installation utilisée pour ce dossier final ne peut pas être confirmée à partir des éléments disponibles : des essais Docker et une installation native ont été mentionnés à différentes étapes.
 
-La demande de licence TheHive Community est **en attente de validation**. Aucun dossier d'incident n'a encore été créé. Le dossier envisagé, **SOC-DFIR-001 — Suspicious PowerShell Encoded Command**, reste à finaliser après activation ; son existence, des tâches ou des observables enregistrés ne sont pas revendiqués.
+Le dossier a une sévérité **High**, TLP et PAP **AMBER**, et référence MITRE ATT&CK **T1059.001 — PowerShell**. Trois observables ont été renseignés : l'hôte `RYAD`, l'adresse IP de la VM Windows du laboratoire et une empreinte SHA-256, sans attribution non vérifiée à un fichier ou à un malware. Quatre tâches ont été créées, documentées et terminées : triage SOC, acquisition de preuves, investigation disque et investigation mémoire. La description, les journaux d'activité des tâches et le résumé final ont été renseignés manuellement.
+
+Le dossier est clôturé **« vrai positif »**, avec un impact **« non »** : la règle a bien détecté l'activité PowerShell simulée, ce qui ne démontre pas une compromission malveillante. Aucune intégration automatique Elastic → TheHive n'a été réalisée. La fonctionnalité native de chronologie n'était pas disponible avec la licence Community ; les journaux ont été ajoutés aux tâches.
 
 ## Captures commentées
 
@@ -81,13 +83,17 @@ Les captures documentent l'environnement et les observations ; l'extrait Prefetc
 8. **FTK Imager** — visualisation des données collectées et de `NTUSER.DAT`. ![Données logiques examinées dans FTK Imager](screenshots/08_FTK_Logical_Evidence.png)
 9. **Mémoire** — extrait Volatility montrant le processus PowerShell ultérieur. ![Processus PowerShell observé avec Volatility](screenshots/09_Volatility_Memory_Analysis.png)
 10. **TheHive** — création de l'organisation active. ![Organisation SOC-DFIR-Lab dans TheHive](screenshots/10_TheHive_SOC_DFIR_Organization.png)
+11. **Dossier initial** — case #1 et quatre tâches créées, avant ajout des observables. ![Liste initiale du dossier TheHive](screenshots/11_TheHive_Incident_Case_Overview.png)
+12. **Observables** — hôte, IP du laboratoire et empreinte SHA-256 documentés. ![Trois observables du dossier](screenshots/12_TheHive_Observables.png)
+13. **Investigation** — quatre tâches terminées. ![Quatre tâches d’investigation terminées](screenshots/13_TheHive_Investigation_Tasks.png)
+14. **Clôture** — vrai positif, sans impact, et résumé de l’investigation simulée. ![Clôture du dossier TheHive](screenshots/14_TheHive_Incident_Closure.png)
 
 ## Limites et recommandations
 
 - Les captures et constats concernent une simulation isolée. Aucune compromission, persistance effective ou activité malveillante réelle n'est déduite de ces observations.
 - Les horodatages de l'extrait Prefetch reposent sur le contexte communiqué ; le fuseau du registre reste à confirmer. Le PID mémoire ultérieur ne prouve pas la présence du processus initial lors de la capture.
 - Le dépôt ne contient ni dump mémoire, ni données collectées, ni export complet de règle, ni hash d'intégrité ou chaîne de conservation documentée. La recherche par mots-clés Autopsy n'a pas abouti.
-- Pour poursuivre : valider le contexte et les fuseaux des artefacts, documenter les méthodes de vérification d'intégrité lors des prochaines acquisitions, affiner les critères de détection et traiter les faux positifs. Après validation de la licence TheHive, créer le cas prévu et documenter manuellement les tâches et observables effectivement retenus.
+- Pour poursuivre : valider le contexte et les fuseaux des artefacts, documenter les méthodes de vérification d'intégrité lors des prochaines acquisitions, affiner les critères de détection et traiter les faux positifs. Poursuivre l’amélioration de la documentation et des procédures de réponse à incident.
 
 ## Auteur
 
